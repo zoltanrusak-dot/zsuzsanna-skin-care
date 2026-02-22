@@ -190,6 +190,7 @@
     footer { flex-direction: column; gap: 10px; padding: 24px; text-align: center; }
   }
 </style>
+<script src="https://www.google.com/recaptcha/api.js?render=6Lf-VHQsAAAAALWYLTjzs0KTrrrD2u61GMLorMTt"></script>
 </head>
 <body>
 
@@ -530,6 +531,11 @@
         <label for="bericht">Opmerkingen</label>
         <textarea id="bericht" name="bericht" placeholder="Eventuele opmerkingen, allergieën of vragen…"></textarea>
       </div>
+      <!-- Honeypot - hidden field, only bots fill this in -->
+      <div style="display:none !important; visibility:hidden; position:absolute; left:-9999px;">
+        <input type="text" id="honeypot" name="honeypot" tabindex="-1" autocomplete="off" />
+      </div>
+
       <div class="form-submit">
         <button type="button" class="btn-submit" onclick="submitBooking()">Afspraak aanvragen</button>
         <span class="form-notice">* Verplichte velden — u ontvangt een bevestiging per e-mail</span>
@@ -569,20 +575,26 @@
 <!-- FOOTER -->
 <footer>
   <div class="logo">Zsuzsanna <span>Skin Care</span></div>
-  <div>© 2025 Zsuzsanna Skin Care — Koolhovenlaan 56, Den Haag</div>
-  <div>Gediplomeerd Schoonheidsspecialiste</div>
+  <div style="text-align:center;">© 2025 Zsuzsanna Skin Care — Koolhovenlaan 56, Den Haag</div>
+  <div style="text-align:right; line-height:2; font-size:11px;">
+    Gediplomeerd Schoonheidsspecialiste<br>
+    KvK nr.: 67617883<br>
+    BTW nr.: NL244833072B01<br>
+    IBAN: NL33INGB0007617709
+  </div>
 </footer>
 
 
 <!-- EmailJS SDK -->
 <script src="https://cdn.jsdelivr.net/npm/@emailjs/browser@4/dist/email.min.js"></script>
+<script src="https://www.google.com/recaptcha/api.js?render=6Lf-VHQsAAAAALWYLTjzs0KTrrrD2u61GMLorMTt"></script>
 <script>
   (function() {
     var PUBLIC_KEY  = 'rD0qM5DRMQo_E-d9k';
     var SERVICE_ID  = 'service_5ghd8mq';
     var TEMPLATE_ID = 'template_lq5q8z8';
+    var RECAPTCHA_KEY = '6Lf-VHQsAAAAALWYLTjzs0KTrrrD2u61GMLorMTt';
 
-    // Init EmailJS
     emailjs.init({ publicKey: PUBLIC_KEY });
 
     // Set min date to today
@@ -593,32 +605,39 @@
     var notice = document.getElementById('setup-notice');
     if (notice) notice.style.display = 'none';
 
-    // Expose submit function globally
+    // Record load time for bot time-check
+    window._formLoadTime = Date.now();
+
     window.submitBooking = function() {
-      var naam        = document.getElementById('naam').value.trim();
-      var email       = document.getElementById('email').value.trim();
-      var behandeling = document.getElementById('behandeling').value;
-      var datum       = document.getElementById('datum').value;
-      var successEl   = document.getElementById('form-success');
-      var errorEl     = document.getElementById('form-error');
-      var btn         = document.querySelector('.btn-submit');
+      var naam         = document.getElementById('naam').value.trim();
+      var email        = document.getElementById('email').value.trim();
+      var behandeling  = document.getElementById('behandeling').value;
+      var datum        = document.getElementById('datum').value;
+      var telefoon     = document.getElementById('telefoon').value.trim() || '-';
+      var tijdvoorkeur = document.getElementById('tijdvoorkeur').value || '-';
+      var bericht      = document.getElementById('bericht').value.trim() || '-';
+      var successEl    = document.getElementById('form-success');
+      var errorEl      = document.getElementById('form-error');
+      var btn          = document.querySelector('.btn-submit');
 
       // Hide old messages
       successEl.style.display = 'none';
       errorEl.style.display   = 'none';
 
+      // Honeypot check
+      if (document.getElementById('honeypot').value !== '') return;
+
+      // Time check (bots submit too fast)
+      if ((Date.now() - window._formLoadTime) / 1000 < 3) return;
+
       // Validate
-      if (!naam) { alert('Vul uw naam in.'); return; }
-      if (!email) { alert('Vul uw e-mailadres in.'); return; }
+      if (!naam)        { alert('Vul uw naam in.'); return; }
+      if (!email)       { alert('Vul uw e-mailadres in.'); return; }
       if (!behandeling) { alert('Kies een behandeling.'); return; }
-      if (!datum) { alert('Kies een datum.'); return; }
+      if (!datum)       { alert('Kies een datum.'); return; }
 
       btn.disabled    = true;
       btn.textContent = 'Versturen…';
-
-      var telefoon    = document.getElementById('telefoon').value.trim() || '-';
-      var tijdvoorkeur = document.getElementById('tijdvoorkeur').value || '-';
-      var bericht     = document.getElementById('bericht').value.trim() || '-';
 
       var params = {
         to_name:      'Zsuzsanna',
@@ -634,30 +653,36 @@
         message:      'Naam: ' + naam + '\nEmail: ' + email + '\nTelefoon: ' + telefoon + '\nBehandeling: ' + behandeling + '\nDatum: ' + datum + '\nTijdvoorkeur: ' + tijdvoorkeur + '\nOpmerking: ' + bericht + '\n\n--- Antwoord gaat naar: ' + email
       };
 
-      emailjs.send(SERVICE_ID, TEMPLATE_ID, params)
-        .then(function(response) {
-          console.log('SUCCESS', response.status, response.text);
-          successEl.style.display = 'block';
-          errorEl.style.display   = 'none';
-          btn.textContent         = 'Verstuurd ✓';
-          successEl.scrollIntoView({ behavior: 'smooth', block: 'center' });
-          // Reset form fields manually (not the button)
-          document.getElementById('naam').value = '';
-          document.getElementById('email').value = '';
-          document.getElementById('telefoon').value = '';
-          document.getElementById('behandeling').selectedIndex = 0;
-          document.getElementById('datum').value = '';
-          document.getElementById('tijdvoorkeur').selectedIndex = 0;
-          document.getElementById('bericht').value = '';
-        })
-        .catch(function(error) {
-          console.error('EMAILJS ERROR:', JSON.stringify(error));
-          errorEl.style.display   = 'block';
-          successEl.style.display = 'none';
-          errorEl.innerHTML = '&#x2717; Fout bij verzenden (code: ' + (error.status || error.text || JSON.stringify(error)) + '). Bel 06 49 31 40 96 of mail naar zsuzsannaskincare@gmail.com';
-          btn.disabled    = false;
-          btn.textContent = 'Afspraak aanvragen';
-        });
+      // reCAPTCHA v3 - invisible, runs in background
+      grecaptcha.ready(function() {
+        grecaptcha.execute(RECAPTCHA_KEY, { action: 'booking' })
+          .then(function(token) {
+            params.recaptcha_token = token;
+            return emailjs.send(SERVICE_ID, TEMPLATE_ID, params);
+          })
+          .then(function(response) {
+            console.log('SUCCESS', response.status, response.text);
+            successEl.style.display = 'block';
+            errorEl.style.display   = 'none';
+            btn.textContent         = 'Verstuurd ✓';
+            successEl.scrollIntoView({ behavior: 'smooth', block: 'center' });
+            document.getElementById('naam').value = '';
+            document.getElementById('email').value = '';
+            document.getElementById('telefoon').value = '';
+            document.getElementById('behandeling').selectedIndex = 0;
+            document.getElementById('datum').value = '';
+            document.getElementById('tijdvoorkeur').selectedIndex = 0;
+            document.getElementById('bericht').value = '';
+          })
+          .catch(function(error) {
+            console.error('ERROR:', JSON.stringify(error));
+            errorEl.style.display   = 'block';
+            successEl.style.display = 'none';
+            errorEl.innerHTML = '&#x2717; Fout bij verzenden (code: ' + (error.status || error.text || JSON.stringify(error)) + '). Bel 06 49 31 40 96 of mail naar zsuzsannaskincare@gmail.com';
+            btn.disabled    = false;
+            btn.textContent = 'Afspraak aanvragen';
+          });
+      });
     };
   })();
 </script>
